@@ -1,12 +1,27 @@
-const image = document.getElementById('hidden'); // a kép betöltése
 const canvas = document.getElementById('myCanvas'); // a canvas betöltése
 const c = canvas.getContext('2d'); // a canvas context betöltése
+const hiddenImg = document.getElementById('hidden'); // a kép betöltése
+const mineImg = document.getElementById('mine'); // a kép betöltése
 
 const size = 50; // a kép mérete
 const columns = canvas.width / size; // oszlopok száma
 const rows = canvas.height / size; // sorok száma
 const mine = 'mine'; // akna
 const mineCount =20; // aknák száma
+
+const images = { // képek betöltése, ez egy objektum adattípus, több adatot tárolhatunk benne, jelölése kapcsos zárójelben
+  'hidden': document.getElementById('hidden'),
+  'mine': document.getElementById('mine'),
+  '0': document.getElementById('field-0'),
+  '1': document.getElementById('field-1'),
+  '2': document.getElementById('field-2'),
+  '3': document.getElementById('field-3'),
+  '4': document.getElementById('field-4'),
+  '5': document.getElementById('field-5'),
+  '6': document.getElementById('field-6'),
+  '7': document.getElementById('field-7'),
+  '8': document.getElementById('field-8'),
+};
 
 let map = createMap();
 
@@ -22,7 +37,6 @@ let map = createMap();
 //let valami7 = function() {}; // function adattípus, függvény
 
 
-console.log(map);
 placeMines(map, mineCount);
 
 
@@ -40,12 +54,12 @@ function placeMines (map, mineCount) { // aknák elhelyezése
   }
 }
 
-function createMap () {
-  let map = [];
-  for (let j = 0; j < rows; j++) { 
-    let row = [];
-    for (let i = 0; i < columns; i++) {
-      row[i] = 0;
+function createMap () { 
+  let map = []; 
+  for (let j = 0; j < rows; j++) {  
+    let row = []; 
+    for (let i = 0; i < columns; i++) { 
+      row[i] = 0; 
     }
     map[j] = row;
   }
@@ -53,13 +67,15 @@ function createMap () {
 }
 
 function drawMap () {
-  for (let i = 0; i < columns; i++) {
-    for (let j = 0; j < rows; j++) {
-      drawImage(i * size, j * size);
+  for (let rowI = 0; rowI < rows; rowI++) { 
+    for (let colI = 0; colI < columns; colI++) {
+      let field = map[rowI][colI];
+      let image = images[field];
+      drawImage(image, colI * size, rowI * size);
     }
   }
 }
 
-function drawImage(x, y) {
+function drawImage(image, x, y) {
   c.drawImage(image, x, y, size, size);
 }
