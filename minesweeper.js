@@ -1,17 +1,17 @@
-const canvas = document.getElementById('myCanvas'); // a canvas betöltése
-const c = canvas.getContext('2d'); // a canvas context betöltése
-const hiddenImg = document.getElementById('hidden'); // a kép betöltése
-const mineImg = document.getElementById('mine'); // a kép betöltése
+const canvas = document.getElementById('myCanvas');
+const c = canvas.getContext('2d');
+const actionButton = document.getElementById('action-button');
+const mineCounter = document.getElementById('mine-count');
+const timeCounter = document.getElementById('time');
 
-const size = 50; // a kép mérete
-const columns = canvas.width / size; // oszlopok száma
-const rows = canvas.height / size; // sorok száma
-const mine = 'mine'; // akna
-const mineCount =20; // aknák száma
-
-const images = { // képek betöltése, ez egy objektum adattípus, több adatot tárolhatunk benne, jelölése kapcsos zárójelben
+const size = 50;
+const columns = canvas.width / size;
+const rows = canvas.height / size;
+const mine = 'mine';
+const mineCount = 30;
+const images = {
   'hidden': document.getElementById('hidden'),
-  'mine': document.getElementById('mine'),
+  'mine': document.getElementById('exploded-mine'),
   '0': document.getElementById('field-0'),
   '1': document.getElementById('field-1'),
   '2': document.getElementById('field-2'),
@@ -21,61 +21,233 @@ const images = { // képek betöltése, ez egy objektum adattípus, több adatot
   '6': document.getElementById('field-6'),
   '7': document.getElementById('field-7'),
   '8': document.getElementById('field-8'),
+  'flag': document.getElementById('flag'),
+  'flaggedWrong': document.getElementById('flagged-wrong'),
+};
+const buttons = {
+  start: 'assets/button-start.png',
+  lost: 'assets/button-lost.png',
+  won: 'assets/button-won.png',
 };
 
-let map = createMap();
+let isGameOver;
+let isFirstClick;
+let exploredFields;
+let flagMap;
+let map;
+let exploredMap; // [[false, false, false, false, false, false, false, false, false, false], ...]]
+let remainingMines;
+let timer;
+
+initGame();
+
+canvas.addEventListener("click", function(event) {
+  if (isGameOver) {
+    return;
+  }
+  const x = event.offsetX;
+  const y = event.offsetY;
+  const col = Math.floor(x / size);
+  const row = Math.floor(y / size);
+  if (isFirstClick) {
+    placeMines(map, mineCount, row, col);
+    calculateFieldValues(map);
+    isFirstClick = false;
+    startTimer();
+  }
+  exploreField(row, col);
+  drawMap();
+  if (map[row][col] === mine && !flagMap[row][col]) {
+    isGameOver = true;
+    actionButton.src = buttons.lost;
+    looseGame();
+    stopTimer();
+  } else if (exploredFields === rows * columns - mineCount) {
+    isGameOver = true;
+    actionButton.src = buttons.won;
+    stopTimer();
+  }
+});
+
+canvas.addEventListener("contextmenu", function(event) {
+  event.preventDefault();
+  const x = event.offsetX;
+  const y = event.offsetY;
+  const col = Math.floor(x / size);
+  const row = Math.floor(y / size);
+  if (exploredMap[row][col]) {
+    return;
+  }
+ flagMap[row][col] = !flagMap[row][col];
+remainingMines += flagMap[row][col] ? - 1 : 1; // ternary operator
+  drawMap();
+  mineCounter.innerText = convertNumberTo3DigitString(remainingMines);
+
+});
+
+actionButton.addEventListener("click", function() {
+  initGame();
+  stopTimer();
+  timeCounter.innerText = convertNumberTo3DigitString(0);
+});
+
+function startTimer() {
+  let seconds = 0;
+ timer = setInterval(function() {
+    seconds = Math.min(seconds + 1, 999);
+    timeCounter.innerText = convertNumberTo3DigitString(seconds);
+}
+, 1000);
+}
+
+function stopTimer() {
+  clearInterval(timer);
+}
 
 
-//let isMine = false; // boolean adattípus, igaz vagy hamis
-//let text = 'hello world'; // string azaz szöveg adattípus, idézőjelek között
-//let valami = undefined; // undefined adattípus, ha nem adunk értéket egy változónak, akkor undefined lesz
-//let valami2 = null; // null adattípus, ha null értéket adunk egy változónak, akkor null lesz
-//let valami3 = 0; // number adattípus, számokat tárolunk benne
-//let valami4 = []; // array adattípus, tömb, több adatot tárolhatunk benne
-//let valami5 = {}; // object adattípus, objektum, több adatot tárolhatunk benne
-//let valami6 = true; // boolean adattípus, igaz vagy hamis
-//let valami7 = function() {}; // function adattípus, függvény
+function initGame() {
+  isGameOver = false;
+  isFirstClick = true;
+  exploredFields = 0;
+  map = createMap();
+  exploredMap = createBooleanMap();
+  flagMap = createBooleanMap();
+  drawMap();
+  actionButton.src = buttons.start;
+  remainingMines = mineCount;
+  mineCounter.innerText = convertNumberTo3DigitString(mineCount);
+}
 
 
-placeMines(map, mineCount);
-
-
-drawMap();
-
-function placeMines (map, mineCount) { // aknák elhelyezése
-  let mines = 0; // aknák száma
-  while (mines < mineCount) { // addig ismételje amíg a mines kisebb mint a mineCount
-    let x = Math.floor(Math.random() * columns); // véletlen szám az x vízszintes tengelyen az oszlopok száma alapján
-    let y = Math.floor(Math.random() * rows); // véletlen szám az y függőleges tengelyen a sorok száma alapján
-    if (map[y][x] !== mine) { // ha a map y sor x oszlopán nem akna
-      map[y][x] = mine; // akkor a map y sor x oszlopára helyezzünk el egy aknát
-      mines++; // növeljük az aknák számát
+function exploreField(row, col) {
+  if (exploredMap[row][col] === false && flagMap[row][col] === false) {
+    exploredFields++;
+    exploredMap[row][col] = true;
+    if (map[row][col] === 0) {
+      let neighbourCoordinates = findNeighbourFields(map, row, col);
+      for (let i = 0; i < neighbourCoordinates.length; i++) {
+        let coordinate = neighbourCoordinates[i]; // {row: 7, col: 1}
+        exploreField(coordinate.row, coordinate.col); //rekurzió
+      }
     }
   }
 }
 
-function createMap () { 
-  let map = []; 
-  for (let j = 0; j < rows; j++) {  
-    let row = []; 
-    for (let i = 0; i < columns; i++) { 
-      row[i] = 0; 
+function calculateFieldValues(map) {
+  for (let rowI = 0; rowI < rows; rowI++) {
+    for (let colI = 0; colI < columns; colI++) {
+      let field = map[rowI][colI];
+      if (field !== mine) {
+        let neighbourCoordinates = findNeighbourFields(map, rowI, colI); // [{row: 7, col: 1}, {row: 7, col: 2}, ...]
+        let mineCount = countMines(map, neighbourCoordinates);
+        map[rowI][colI] = mineCount;
+      }
+    }
+  }
+}
+
+function countMines(map, coordinates) {
+  let mineCount = 0;
+  for (let i = 0; i < coordinates.length; i++) {
+    let coordinate = coordinates[i]; // {row: 7, col: 1}
+    let field = map[coordinate.row][coordinate.col];
+    if (field === mine) {
+      mineCount++;
+    }
+  }
+  return mineCount;
+}
+
+function findNeighbourFields(map, rowI, colI) {
+  let neighbourCoordinates = [];
+  for (let row = rowI - 1; row <= rowI + 1; row++) {
+    for (let col = colI - 1; col <= colI + 1; col++) {
+      if (row >= 0 && row < rows && col >= 0 && col < columns) {
+        if (row !== rowI || col !== colI) {
+          neighbourCoordinates.push({row: row, col: col});
+        }
+      }
+    }
+  }
+  return neighbourCoordinates;
+}
+
+
+function placeMines(map, mineCount, startRow, startCol) {
+  let mines = 0;
+  while (mines < mineCount) {
+    let x = Math.floor(Math.random() * columns);
+    let y = Math.floor(Math.random() * rows);
+    if (x!== startCol && y!==startRow && map[y][x] !== mine) {
+      map[y][x] = mine;
+      mines++;
+    }
+  }
+}
+
+function createMap() {
+  let map = [];
+  for (let j = 0; j < rows; j++) {
+    let row = [];
+    for (let i = 0; i < columns; i++) {
+      row[i] = 0;
     }
     map[j] = row;
   }
   return map;
 }
 
-function drawMap () {
-  for (let rowI = 0; rowI < rows; rowI++) { 
+function createBooleanMap() {
+  let exploredMap = [];
+  for (let j = 0; j < rows; j++) {
+    let row = [];
+    for (let i = 0; i < columns; i++) {
+      row[i] = false;
+    }
+    exploredMap[j] = row;
+  }
+  return exploredMap;
+}
+
+function drawMap() {
+  for (let rowI = 0; rowI < rows; rowI++) {
     for (let colI = 0; colI < columns; colI++) {
+      if (!exploredMap[rowI][colI]) {
+        drawImage(images.hidden, colI * size, rowI * size);
+        if (flagMap[rowI][colI] === true) {
+          drawImage(images.flag, colI * size, rowI * size);
+        }
+      } else {
       let field = map[rowI][colI];
       let image = images[field];
       drawImage(image, colI * size, rowI * size);
     }
   }
 }
+}
 
 function drawImage(image, x, y) {
   c.drawImage(image, x, y, size, size);
 }
+
+function convertNumberTo3DigitString(number) {
+  if (number < 0) {
+    return '🤡'}
+   else if (number < 10) {
+    return '00' + number;
+  } else if (number < 100) {
+    return '0' + number;
+  } else {
+    return number;
+  }
+}
+
+function looseGame() {
+  isGameOver = true;
+  actionButton.src = buttons.lost;
+  for (let rowI = 0; rowI < rows; rowI++) {
+    for (let colI = 0; colI < columns; colI++) {
+      if (flagMap [rowI] [colI] && map[rowI][colI] !== mine) {
+        drawImage(images.flaggedWrong, colI * size, rowI * size);
+      }}}}
+
