@@ -76,13 +76,32 @@ canvas.addEventListener("contextmenu", function(event) {
   const col = Math.floor(x / size);
   const row = Math.floor(y / size);
   if (exploredMap[row][col]) {
-    return;
-  }
+   const neighbourCoordinates = findNeighbourFields(map, row, col);
+    let flaggedNeighbours = countFlaggedNeighbours(neighbourCoordinates);
+    if (flaggedNeighbours === map[row][col]) {
+      for (let i = 0; i < neighbourCoordinates.length; i++) {
+        let coordinate = neighbourCoordinates[i];
+        if (!exploredMap[coordinate.row][coordinate.col]) {
+          exploreField(coordinate.row, coordinate.col);
+          if (map[coordinate.row][coordinate.col] === mine) {
+            isGameOver = true;
+            actionButton.src = buttons.lost;
+            looseGame();
+            stopTimer();
+          }
+        }
+      }
+    }
+  } else {
  flagMap[row][col] = !flagMap[row][col];
 remainingMines += flagMap[row][col] ? - 1 : 1; // ternary operator
-  drawMap();
+ 
   mineCounter.innerText = convertNumberTo3DigitString(remainingMines);
-
+  }
+  drawMap();
+  if ( isGameOver && remainingMines > 0) {
+    showWrongFlags();
+  }
 });
 
 actionButton.addEventListener("click", function() {
@@ -226,6 +245,17 @@ function drawMap() {
 }
 }
 
+function countFlaggedNeighbours(neighbourCoordinates) {
+  let flaggedNeighbours = 0;
+  for (let i = 0; i < neighbourCoordinates.length; i++) {
+    let coordinate = neighbourCoordinates[i];
+    if (flagMap[coordinate.row][coordinate.col]) {
+      flaggedNeighbours++;
+    }
+  }
+  return flaggedNeighbours;
+}
+
 function drawImage(image, x, y) {
   c.drawImage(image, x, y, size, size);
 }
@@ -245,9 +275,14 @@ function convertNumberTo3DigitString(number) {
 function looseGame() {
   isGameOver = true;
   actionButton.src = buttons.lost;
-  for (let rowI = 0; rowI < rows; rowI++) {
-    for (let colI = 0; colI < columns; colI++) {
-      if (flagMap [rowI] [colI] && map[rowI][colI] !== mine) {
-        drawImage(images.flaggedWrong, colI * size, rowI * size);
-      }}}}
+  }
 
+  function showWrongFlags () {
+    for (let rowI = 0; rowI < rows; rowI++) {
+      for (let colI = 0; colI < columns; colI++) {
+        if (flagMap[rowI][colI] && map[rowI][colI] !== mine) {
+          drawImage(images.flaggedWrong, colI * size, rowI * size);
+        }
+      }
+    }
+  }
