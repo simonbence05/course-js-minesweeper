@@ -12,6 +12,8 @@ const mineCount = 30;
 const images = {
   'hidden': document.getElementById('hidden'),
   'mine': document.getElementById('exploded-mine'),
+  'flag': document.getElementById('flag'),
+  'flaggedWrong': document.getElementById('flagged-wrong'),
   '0': document.getElementById('field-0'),
   '1': document.getElementById('field-1'),
   '2': document.getElementById('field-2'),
@@ -21,30 +23,25 @@ const images = {
   '6': document.getElementById('field-6'),
   '7': document.getElementById('field-7'),
   '8': document.getElementById('field-8'),
-  'flag': document.getElementById('flag'),
-  'flaggedWrong': document.getElementById('flagged-wrong'),
 };
 const buttons = {
   start: 'assets/button-start.png',
   lost: 'assets/button-lost.png',
   won: 'assets/button-won.png',
-};
-
+}
 let isGameOver;
 let isFirstClick;
 let exploredFields;
 let flagMap;
 let map;
-let exploredMap; // [[false, false, false, false, false, false, false, false, false, false], ...]]
+let exploredMap;
 let remainingMines;
 let timer;
 
 initGame();
 
-canvas.addEventListener("click", function(event) {
-  if (isGameOver) {
-    return;
-  }
+canvas.addEventListener('click', function(event) {
+  if (isGameOver) return;
   const x = event.offsetX;
   const y = event.offsetY;
   const col = Math.floor(x / size);
@@ -57,9 +54,7 @@ canvas.addEventListener("click", function(event) {
   }
   exploreField(row, col);
   drawMap();
-  if (map[row][col] === mine && !flagMap[row][col]) {
-    isGameOver = true;
-    actionButton.src = buttons.lost;
+  if (map[row][col] === mine && exploredMap[row][col]) {
     looseGame();
     stopTimer();
   } else if (exploredFields === rows * columns - mineCount) {
@@ -69,42 +64,20 @@ canvas.addEventListener("click", function(event) {
   }
 });
 
-canvas.addEventListener("contextmenu", function(event) {
+canvas.addEventListener('contextmenu', function(event) {
   event.preventDefault();
   const x = event.offsetX;
   const y = event.offsetY;
   const col = Math.floor(x / size);
   const row = Math.floor(y / size);
-  if (exploredMap[row][col]) {
-   const neighbourCoordinates = findNeighbourFields(map, row, col);
-    let flaggedNeighbours = countFlaggedNeighbours(neighbourCoordinates);
-    if (flaggedNeighbours === map[row][col]) {
-      for (let i = 0; i < neighbourCoordinates.length; i++) {
-        let coordinate = neighbourCoordinates[i];
-        if (!exploredMap[coordinate.row][coordinate.col]) {
-          exploreField(coordinate.row, coordinate.col);
-          if (map[coordinate.row][coordinate.col] === mine) {
-            isGameOver = true;
-            actionButton.src = buttons.lost;
-            looseGame();
-            stopTimer();
-          }
-        }
-      }
-    }
-  } else {
- flagMap[row][col] = !flagMap[row][col];
-remainingMines += flagMap[row][col] ? - 1 : 1; // ternary operator
- 
-  mineCounter.innerText = convertNumberTo3DigitString(remainingMines);
-  }
+  if (exploredMap[row][col]) return;
+  flagMap[row][col] = !flagMap[row][col];
+  remainingMines += flagMap[row][col] ? -1 : 1; // ternary operator
   drawMap();
-  if ( isGameOver && remainingMines > 0) {
-    showWrongFlags();
-  }
+  mineCounter.innerText = convertNumberTo3DigitString(remainingMines);
 });
 
-actionButton.addEventListener("click", function() {
+actionButton.addEventListener('click', function() {
   initGame();
   stopTimer();
   timeCounter.innerText = convertNumberTo3DigitString(0);
@@ -112,17 +85,15 @@ actionButton.addEventListener("click", function() {
 
 function startTimer() {
   let seconds = 0;
- timer = setInterval(function() {
+  timer = setInterval(function() {
     seconds = Math.min(seconds + 1, 999);
     timeCounter.innerText = convertNumberTo3DigitString(seconds);
-}
-, 1000);
+  }, 1000);
 }
 
 function stopTimer() {
   clearInterval(timer);
 }
-
 
 function initGame() {
   isGameOver = false;
@@ -134,19 +105,30 @@ function initGame() {
   drawMap();
   actionButton.src = buttons.start;
   remainingMines = mineCount;
-  mineCounter.innerText = convertNumberTo3DigitString(mineCount);
+  mineCounter.innerText = convertNumberTo3DigitString(remainingMines);
 }
 
+function looseGame() {
+  isGameOver = true;
+  actionButton.src = buttons.lost;
+  for (let rowI = 0; rowI < rows; rowI++) {
+    for (let colI = 0; colI < columns; colI++) {
+      if (flagMap[rowI][colI] && map[rowI][colI] !== mine) {
+        drawImage(images.flaggedWrong, colI * size, rowI * size);
+      }
+    }
+  }
+}
 
 function exploreField(row, col) {
-  if (exploredMap[row][col] === false && flagMap[row][col] === false) {
+  if (!exploredMap[row][col] && !flagMap[row][col]) {
     exploredFields++;
     exploredMap[row][col] = true;
     if (map[row][col] === 0) {
       let neighbourCoordinates = findNeighbourFields(map, row, col);
       for (let i = 0; i < neighbourCoordinates.length; i++) {
         let coordinate = neighbourCoordinates[i]; // {row: 7, col: 1}
-        exploreField(coordinate.row, coordinate.col); //rekurzió
+        exploreField(coordinate.row, coordinate.col); // rekurzió
       }
     }
   }
@@ -197,7 +179,7 @@ function placeMines(map, mineCount, startRow, startCol) {
   while (mines < mineCount) {
     let x = Math.floor(Math.random() * columns);
     let y = Math.floor(Math.random() * rows);
-    if (x!== startCol && y!==startRow && map[y][x] !== mine) {
+    if (x !== startCol && y !== startRow && map[y][x] !== mine) {
       map[y][x] = mine;
       mines++;
     }
@@ -233,27 +215,16 @@ function drawMap() {
     for (let colI = 0; colI < columns; colI++) {
       if (!exploredMap[rowI][colI]) {
         drawImage(images.hidden, colI * size, rowI * size);
-        if (flagMap[rowI][colI] === true) {
+        if (flagMap[rowI][colI]) {
           drawImage(images.flag, colI * size, rowI * size);
         }
       } else {
-      let field = map[rowI][colI];
-      let image = images[field];
-      drawImage(image, colI * size, rowI * size);
+        let field = map[rowI][colI];
+        let image = images[field];
+        drawImage(image, colI * size, rowI * size);
+      }
     }
   }
-}
-}
-
-function countFlaggedNeighbours(neighbourCoordinates) {
-  let flaggedNeighbours = 0;
-  for (let i = 0; i < neighbourCoordinates.length; i++) {
-    let coordinate = neighbourCoordinates[i];
-    if (flagMap[coordinate.row][coordinate.col]) {
-      flaggedNeighbours++;
-    }
-  }
-  return flaggedNeighbours;
 }
 
 function drawImage(image, x, y) {
@@ -262,8 +233,8 @@ function drawImage(image, x, y) {
 
 function convertNumberTo3DigitString(number) {
   if (number < 0) {
-    return '🤡'}
-   else if (number < 10) {
+    return '🤡';
+  } else if (number < 10) {
     return '00' + number;
   } else if (number < 100) {
     return '0' + number;
@@ -271,18 +242,3 @@ function convertNumberTo3DigitString(number) {
     return number;
   }
 }
-
-function looseGame() {
-  isGameOver = true;
-  actionButton.src = buttons.lost;
-  }
-
-  function showWrongFlags () {
-    for (let rowI = 0; rowI < rows; rowI++) {
-      for (let colI = 0; colI < columns; colI++) {
-        if (flagMap[rowI][colI] && map[rowI][colI] !== mine) {
-          drawImage(images.flaggedWrong, colI * size, rowI * size);
-        }
-      }
-    }
-  }
